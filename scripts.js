@@ -1383,3 +1383,4 @@ function processNewFile(file) {
 
     reader.readAsText(file);
 }
+
