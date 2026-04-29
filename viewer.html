@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CARGA DE PROFILE</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #eef2f6;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+  }
+  h1 { margin-bottom: 5px; letter-spacing: 1px; }
+  h2 { margin: 10px 0; color: #444; }
+  input[type="file"] { margin: 20px 0; }
+  #viewer {
+    display: inline-block;
+    background: #fff;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    padding: 15px 25px;
+    margin-top: 15px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+  .section {
+    margin: 10px 0 25px 0;
+  }
+  .section-title {
+    font-weight: bold;
+    margin-bottom: 6px;
+    color: #333;
+  }
+  .row {
+    display: flex;
+    justify-content: center;
+    margin: 3px 0;
+  }
+  .tier {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #aaa;
+    border-radius: 3px;
+    margin: 1px;
+  }
+  .deck .tier {
+    background: #d0e9ff; /* celeste */
+  }
+  .hold .tier {
+    background: #f2d9b0; /* marrón claro */
+  }
+  .controls { margin-top: 20px; }
+  button {
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    font-size: 16px;
+    border-radius: 5px;
+    margin: 0 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: #125ea8; }
+</style>
+</head>
+<body>
+
+<h1>CARGA DE PROFILE</h1>
+<h2 id="bayTitle">Esperando carga de archivo...</h2>
+
+<input type="file" id="fileInput" accept=".json">
+
+<div id="viewer">Sin datos cargados</div>
+
+<div class="controls">
+  <button onclick="prevBay()">← Anterior</button>
+  <button onclick="nextBay()">Siguiente →</button>
+</div>
+
+<script>
+let bays = [];
+let currentIndex = 0;
+
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      bays = data.bays || [];
+      currentIndex = 0;
+      showBay(0);
+    } catch (err) {
+      document.getElementById("viewer").textContent = "❌ Error al leer el archivo JSON";
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+});
+
+function showBay(index) {
+  if (!bays.length) return;
+  const bay = bays[index];
+  const viewer = document.getElementById("viewer");
+  viewer.innerHTML = "";
+
+  document.getElementById("bayTitle").textContent = `Bay ${bay.bay} (${index+1}/${bays.length})`;
+
+  // Render Deck
+  const deckDiv = document.createElement("div");
+  deckDiv.className = "section deck";
+  const deckTitle = document.createElement("div");
+  deckTitle.className = "section-title";
+  deckTitle.textContent = "Cubierta (Deck)";
+  deckDiv.appendChild(deckTitle);
+  renderSection(deckDiv, bay.deck);
+
+  // Render Hold
+  const holdDiv = document.createElement("div");
+  holdDiv.className = "section hold";
+  const holdTitle = document.createElement("div");
+  holdTitle.className = "section-title";
+  holdTitle.textContent = "Bodega (Hold)";
+  holdDiv.appendChild(holdTitle);
+  renderSection(holdDiv, bay.hold);
+
+  viewer.appendChild(deckDiv);
+  viewer.appendChild(holdDiv);
+}
+
+function renderSection(parent, section) {
+  if (!section) return;
+  section.rows.forEach(row => {
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "row";
+    section.tiers.forEach(() => {
+      const tierDiv = document.createElement("div");
+      tierDiv.className = "tier";
+      rowDiv.appendChild(tierDiv);
+    });
+    parent.appendChild(rowDiv);
+  });
+}
+
+function nextBay() {
+  if (currentIndex < bays.length - 1) {
+    currentIndex++;
+    showBay(currentIndex);
+  }
+}
+
+function prevBay() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    showBay(currentIndex);
+  }
+}
+</script>
+
+</body>
+</html>
