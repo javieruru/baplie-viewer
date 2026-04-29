@@ -199,9 +199,11 @@ function parseBALPIEToObject(content, fileName) {
         if (!currentContainer.pod) {
             parseWarnings.push({ type: 'warning', msg: `Contenedor ${currentContainer.numero || currentContainer.posicion}: sin LOC+11 (POD).` });
         }
-        // Calcular estado: lleno o vacío
-        const pesoNum = parseFloat(currentContainer.peso);
-        currentContainer.estado = (!currentContainer.peso || isNaN(pesoNum) || pesoNum === 0) ? 'Vacío' : 'Lleno';
+        // Calcular estado: usar EQD fullness si disponible, sino usar peso como fallback
+        if (!currentContainer.estado) {
+            const pesoNum = parseFloat(currentContainer.peso);
+            currentContainer.estado = (!currentContainer.peso || isNaN(pesoNum) || pesoNum === 0) ? 'Vacío' : 'Lleno';
+        }
         // Normalizar bay: quitar primer 0 si tiene 3 dígitos -> 006 -> 06
         if (currentContainer.bay && currentContainer.bay.length === 3) {
             currentContainer.bay = currentContainer.bay.replace(/^0/, '');
@@ -253,6 +255,14 @@ function parseBALPIEToObject(content, fileName) {
             const parts = seg.split('+');
             currentContainer.numero  = (parts[2] || '').replace(/'/g, '').trim();
             currentContainer.isoCode = (parts[3] || '').replace(/'/g, '').trim();
+            // parts[4] = fullness: 1=full, 2=full, 3=partial, 4=empty, 5=empty
+            const fullness = (parts[4] || '').trim();
+            if (fullness === '4' || fullness === '5') {
+                currentContainer.estado = 'Vacío';
+            } else if (fullness === '1' || fullness === '2' || fullness === '3') {
+                currentContainer.estado = 'Lleno';
+            }
+            // If no fullness field, leave estado empty (will be set by peso in flushContainer)
             const iso = currentContainer.isoCode;
             if (iso.length >= 2) {
                 const f2 = iso.substring(0, 2);
@@ -426,6 +436,9 @@ function viewBaplie(index) {
     renderTable();
     showStats();
     document.getElementById('tableFooter').classList.add('active');
+    const qfBar = document.getElementById('quickFilterBar');
+    if (qfBar) qfBar.classList.add('visible');
+
     // Panel de diagnóstico
     renderDiagnosticsPanel(baplie.parseWarnings || []);
 }
@@ -529,10 +542,9 @@ function backToList() {
     // Limpiar panel de diagnóstico y filtro rápido
     const dp = document.getElementById('diagnosticsPanel');
     if (dp) dp.remove();
+    const qfBar = document.getElementById('quickFilterBar');
+    if (qfBar) { qfBar.classList.remove('visible'); document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active')); }
     activeQuickFilter = null;
-    ['fstatVacios','fstatLlenos','fstatReefers','fstatImos'].forEach(id => {
-        const el = document.getElementById(id); if(el) el.classList.remove('footer-stat-active');
-    });
 
     document.getElementById('contentSection').style.display = 'none';
     document.getElementById('baplieListSection').style.display = 'flex';
@@ -672,27 +684,24 @@ function renderTable() {
         </th>`;
     }).join('');
 
-    // Build filter row with custom dropdown selects
     filterRow.innerHTML = headers.map(key => {
         const isId = key === 'id';
         const width = COL_WIDTHS[key] || '90px';
         if (isId) return `<th style="width:${width}; min-width:${width};"><span class="filter-label-id">Filtrar...</span></th>`;
 
+        // Build unique values for datalist
         const uniqVals = [...new Set(
-            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v !== '')
-        )].sort();
+            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v && v.length < 30)
+        )].sort().slice(0, 50);
+        const listId = `dl_${key}`;
+        const datalistHtml = `<datalist id="${listId}">${uniqVals.map(v => `<option value="${v}">`).join('')}</datalist>`;
 
-        const currentVal = filters[key] || '';
-        const options = uniqVals.map(v =>
-            `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`
-        ).join('');
-
-        return `<th style="width:${width}; min-width:${width}; padding:2px 3px;">
-            <select class="filter-select ${currentVal ? 'filter-active' : ''}" data-col="${key}"
+        return `<th style="width:${width}; min-width:${width}; position:relative;">
+            ${datalistHtml}
+            <input type="text" class="filter-input" placeholder="▼" data-col="${key}"
+                list="${listId}"
+                onkeyup="filterColumn('${key}', this.value)"
                 onchange="filterColumn('${key}', this.value)">
-                <option value="">—</option>
-                ${options}
-            </select>
         </th>`;
     }).join('');
 
@@ -743,21 +752,30 @@ function showStats() {
     document.getElementById('footerImos').textContent = dangerous;
     document.getElementById('footerVessel').textContent = vesselName;
 
+    // Update quick filter counts
+    const qfcL = document.getElementById('qfcLlenos');
+    const qfcV = document.getElementById('qfcVacios');
+    const qfcR = document.getElementById('qfcReefers');
+    const qfcI = document.getElementById('qfcImos');
+    if (qfcL) qfcL.textContent = loaded;
+    if (qfcV) qfcV.textContent = empty;
+    if (qfcR) qfcR.textContent = reefers;
+    if (qfcI) qfcI.textContent = dangerous;
 }
 
 function quickFilter(type) {
-    const statMap = { vacios:'fstatVacios', llenos:'fstatLlenos', reefers:'fstatReefers', imos:'fstatImos' };
+    // Toggle off if same filter clicked again
     if (activeQuickFilter === type) {
         activeQuickFilter = null;
-        Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
+        document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
         containersData = JSON.parse(JSON.stringify(originalData));
         renderTable();
         return;
     }
     activeQuickFilter = type;
-    Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
-    const activeEl = document.getElementById(statMap[type]);
-    if (activeEl) activeEl.classList.add('footer-stat-active');
+    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
+    document.getElementById('qf-' + type).classList.add('qf-active');
+
     containersData = originalData.filter(c => {
         if (type === 'llenos')  return c.estado === 'Lleno';
         if (type === 'vacios')  return c.estado === 'Vacío';
@@ -912,6 +930,10 @@ function openEditModal(rowIndex) {
                     : '📦 Standard';
 
     const imgSrc = getContainerImage(row);
+
+    // Remove any existing modal first
+    const existingModal = document.getElementById('editModal');
+    if (existingModal) existingModal.remove();
 
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -1206,11 +1228,7 @@ function sortTable(column) {
 // ==================== FILTROS ====================
 // DESPUÉS
 function filterColumn(column, value) {
-    if (value === '' || value === '—') {
-        delete filters[column];
-    } else {
-        filters[column] = value.toLowerCase();
-    }
+    filters[column] = value.toLowerCase();
     applyFiltersOnly();
 }
 
@@ -1251,13 +1269,27 @@ function applyFiltersOnly() {
     }).join('');
 
     // Actualiza estilos del input activo sin tocar el DOM
-    document.querySelectorAll('.filter-select').forEach(sel => {
-        const col = sel.dataset.col;
+    document.querySelectorAll('.filter-input').forEach(input => {
+        const col = input.dataset.col;
         if (!col) return;
         const val = filters[col] || '';
-        sel.value = val || '';
-        if (val) sel.classList.add('filter-active');
-        else sel.classList.remove('filter-active');
+
+        if (val) {
+            input.classList.add('filter-active');
+        } else {
+            input.classList.remove('filter-active');
+        }
+
+        let clearBtn = input.parentNode.querySelector('.filter-clear');
+        if (val && !clearBtn) {
+            clearBtn = document.createElement('span');
+            clearBtn.className = 'filter-clear';
+            clearBtn.textContent = '✕';
+            clearBtn.onclick = () => clearSingleFilter(col);
+            input.parentNode.appendChild(clearBtn);
+        } else if (!val && clearBtn) {
+            clearBtn.remove();
+        }
     });
 
     showStats();
@@ -1278,29 +1310,53 @@ function applyFilters() {
 
 // DESPUÉS
 function restoreFilterInputs() {
-    document.querySelectorAll('.filter-select').forEach(sel => {
-        const col = sel.dataset.col;
+    const active = document.activeElement;
+    const activeCol = active && active.dataset ? active.dataset.col : null;
+    const activeCursor = active ? active.selectionStart : null;
+
+    document.querySelectorAll('.filter-input').forEach(input => {
+        const col = input.dataset.col;
         if (!col) return;
         const val = filters[col] || '';
-        sel.value = val || '';
-        if (val) sel.classList.add('filter-active');
-        else sel.classList.remove('filter-active');
+        input.value = val;
+
+        if (val) {
+            input.classList.add('filter-active');
+        } else {
+            input.classList.remove('filter-active');
+        }
+
+        let clearBtn = input.parentNode.querySelector('.filter-clear');
+        if (val && !clearBtn) {
+            clearBtn = document.createElement('span');
+            clearBtn.className = 'filter-clear';
+            clearBtn.textContent = '✕';
+            clearBtn.onclick = () => clearSingleFilter(col);
+            input.parentNode.appendChild(clearBtn);
+        } else if (!val && clearBtn) {
+            clearBtn.remove();
+        }
+
+        // Restaurar foco y posición del cursor
+        if (col === activeCol) {
+            input.focus();
+            if (activeCursor !== null) {
+                input.setSelectionRange(activeCursor, activeCursor);
+            }
+        }
     });
 }
 
 function clearSingleFilter(col) {
     delete filters[col];
-    renderTable();
-    showStats();
+    applyFilters();
 }
 
 // DESPUÉS
 function clearFilters() {
     filters = {};
     activeQuickFilter = null;
-    ['fstatVacios','fstatLlenos','fstatReefers','fstatImos'].forEach(id => {
-        const el = document.getElementById(id); if(el) el.classList.remove('footer-stat-active');
-    });
+    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
     containersData = JSON.parse(JSON.stringify(originalData));
     const globalSearch = document.getElementById('globalSearch');
     if (globalSearch) globalSearch.value = '';
