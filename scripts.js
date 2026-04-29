@@ -795,68 +795,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function getContainerImage(row) {
+    const tamano = (row['tamaño'] || '').replace("'", '').trim(); // '20' or '40' or '45'
+    const tipo   = (row.tipo    || '').toLowerCase();
+    const iso    = (row.isoCode || '').toUpperCase();
+
+    // Tank: ISO starts with T, or tipo contains tank
+    if (iso.startsWith('T') || tipo.includes('tank')) return 'img/20tk.png';
+    // Flat Rack
+    if (tipo.includes('flat') || iso[2] === 'P') return 'img/flat.png';
+    // Open Top
+    if (tipo.includes('open') || iso[2] === 'U') {
+        return tamano === '20' ? 'img/20ot.png' : 'img/40ot.png';
+    }
+    // Reefer
+    if (tipo.includes('reefer') || iso[2] === 'R' || iso.endsWith('R1') || iso.endsWith('R9') || iso === '4532' || iso === '45R1') {
+        return tamano === '20' ? 'img/20rf.png' : 'img/40rf.png';
+    }
+    // Standard / HC
+    if (tamano === '20') return 'img/20dc.png';
+    return 'img/40HC.png';
+}
+
 function openEditModal(rowIndex) {
     const row = containersData[rowIndex];
-    const keys = Object.keys(row);
-    const excludeFields = ['id', 'descripcion'];
 
-    // Determinar tipo visual del contenedor
-    const isReefer    = row.tipo === 'Reefer';
+    // Accent color based on type
+    const tipo = (row.tipo || '').toLowerCase();
+    const iso  = (row.isoCode || '').toUpperCase();
+    const isReefer    = tipo.includes('reefer') || iso[2] === 'R';
     const isDangerous = row.peligroso === 'Sí';
-    const isOpenTop   = row.tipo === 'Open Top';
-    const isFlatRack  = row.tipo === 'Flat Rack';
-    const is20        = row.tamaño === "20'";
+    const isOpenTop   = tipo.includes('open')   || iso[2] === 'U';
+    const isFlatRack  = tipo.includes('flat')   || iso[2] === 'P';
+    const isTank      = iso.startsWith('T')     || tipo.includes('tank');
 
-    // Color de acento según tipo
     const accentColor = isDangerous ? '#e53935'
-                      : isReefer    ? '#1976d2'
-                      : isOpenTop   ? '#f57c00'
-                      : isFlatRack  ? '#6d4c41'
-                      : '#388e3c';
+                      : isReefer    ? '#1565c0'
+                      : isTank      ? '#6a1b9a'
+                      : isOpenTop   ? '#e65100'
+                      : isFlatRack  ? '#4e342e'
+                      : '#2e7d32';
 
     const typeLabel = isDangerous ? '⚠️ Peligroso'
                     : isReefer    ? '❄️ Reefer'
+                    : isTank      ? '🛢️ Tanque'
                     : isOpenTop   ? '📭 Open Top'
                     : isFlatRack  ? '📋 Flat Rack'
                     : '📦 Standard';
 
-    // SVG del contenedor según tamaño y tipo
-    function containerSVG() {
-        const w = is20 ? 120 : 200;
-        const h = 70;
-        const color = isDangerous ? '#ffcdd2'
-                    : isReefer    ? '#bbdefb'
-                    : isOpenTop   ? '#ffe0b2'
-                    : '#e8f5e9';
-        const stripe = isDangerous ? '#e53935'
-                     : isReefer    ? '#1976d2'
-                     : isOpenTop   ? '#f57c00'
-                     : '#388e3c';
-
-        const topPanel = isOpenTop ? '' : `<rect x="2" y="2" width="${w-4}" height="12" rx="2" fill="${stripe}" opacity="0.7"/>`;
-        const reeferLines = isReefer ? `
-            <line x1="20" y1="18" x2="20" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="40" y1="18" x2="40" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="60" y1="18" x2="60" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            ${!is20 ? `<line x1="80" y1="18" x2="80" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="100" y1="18" x2="100" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="120" y1="18" x2="120" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="140" y1="18" x2="140" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
-            <line x1="160" y1="18" x2="160" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>` : ''}` : '';
-        const hazmat = isDangerous ? `
-            <polygon points="${w/2},${h/2-14} ${w/2-12},${h/2+6} ${w/2+12},${h/2+6}" fill="#e53935" opacity="0.85"/>
-            <text x="${w/2}" y="${h/2+4}" text-anchor="middle" fill="white" font-size="10" font-weight="bold">!</text>` : '';
-        const snowflake = isReefer ? `<text x="${w/2}" y="${h/2+8}" text-anchor="middle" fill="${stripe}" font-size="22" opacity="0.35">❄</text>` : '';
-        const openTopTop = isOpenTop ? `<line x1="2" y1="8" x2="${w-2}" y2="8" stroke="${stripe}" stroke-width="2" stroke-dasharray="6,4" opacity="0.7"/>` : '';
-
-        return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1" y="1" width="${w-2}" height="${h-2}" rx="4" fill="${color}" stroke="${stripe}" stroke-width="2"/>
-            ${topPanel}
-            ${reeferLines}${snowflake}${hazmat}${openTopTop}
-            <rect x="${w-16}" y="8" width="12" height="${h-16}" rx="2" fill="${stripe}" opacity="0.25"/>
-            <rect x="4" y="${h-10}" width="${w-8}" height="6" rx="2" fill="${stripe}" opacity="0.2"/>
-        </svg>`;
-    }
+    const imgSrc = getContainerImage(row);
 
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -865,101 +852,190 @@ function openEditModal(rowIndex) {
 
     modal.innerHTML = `
         <div class="unit-inspector-modal">
+
             <!-- HEADER -->
-            <div class="ui-header" style="background:${accentColor};">
+            <div class="ui-header" style="background: linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%);">
                 <div class="ui-header-left">
-                    <span class="ui-title">🔍 Unit Inspector</span>
-                    <span class="ui-subtitle">${row.numero || 'Sin número'}</span>
+                    <span class="ui-title">Unit Inspector</span>
+                    <span class="ui-subtitle ui-copy-num" title="Clic para copiar" onclick="copyContainerNumber('${row.numero || ''}', this)">
+                        ${row.numero || 'Sin número'}
+                        <span class="ui-copy-icon">📋</span>
+                    </span>
                 </div>
                 <div class="ui-header-right">
                     <span class="ui-type-badge">${typeLabel}</span>
+                    <button class="ui-pencil-btn" id="uiPencilBtn" title="Habilitar edición" onclick="toggleInspectorEdit()">✏️</button>
                     <button class="ui-close-btn" onclick="closeEditModal()">✕</button>
                 </div>
             </div>
 
             <!-- BODY -->
             <div class="ui-body">
-                <!-- PANEL IZQUIERDO: imagen + datos clave -->
+
+                <!-- PANEL IZQUIERDO -->
                 <div class="ui-left-panel">
                     <div class="ui-container-visual">
-                        ${containerSVG()}
+                        <img src="${imgSrc}" alt="${row.tipo}" class="ui-container-img"
+                             onerror="this.style.opacity='0.3'; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 80%22><rect width=%22200%22 height=%2280%22 rx=%228%22 fill=%22%23eee%22/><text x=%22100%22 y=%2248%22 text-anchor=%22middle%22 fill=%22%23aaa%22 font-size=%2214%22>No img</text></svg>'">
                         <div class="ui-container-label">${row.tamaño || ''} ${row.tipo || ''}</div>
                     </div>
+
                     <div class="ui-key-info">
-                        <div class="ui-key-row"><span class="ui-key-label">Número</span><span class="ui-key-value ui-mono">${row.numero || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">ISO Code</span><span class="ui-key-value ui-mono">${row.isoCode || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Posición</span><span class="ui-key-value ui-mono" style="color:${accentColor}; font-weight:700;">${row.posicion || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Peso VGM</span><span class="ui-key-value">${row.peso ? row.peso + ' kg' : '-'}</span></div>
-                        ${isReefer ? `<div class="ui-key-row"><span class="ui-key-label">Setpoint</span><span class="ui-key-value" style="color:#1976d2; font-weight:700;">${row.setpoint || '-'} °C</span></div>` : ''}
-                        ${isDangerous ? `<div class="ui-key-row"><span class="ui-key-label">IMDG</span><span class="ui-key-value" style="color:#e53935; font-weight:700;">${row.imdg || '-'}</span></div>` : ''}
+                        <div class="ui-key-row"><span class="ui-key-label">ISO</span><span class="ui-key-value ui-mono">${row.isoCode || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Posición</span><span class="ui-key-value ui-mono" style="color:${accentColor}; font-weight:800;">${row.posicion || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Bay / Row / Tier</span><span class="ui-key-value ui-mono">${row.bay || '-'} / ${row.row || '-'} / ${row.tier || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Peso VGM</span><span class="ui-key-value">${row.peso ? Number(row.peso).toLocaleString('es-UY') + ' kg' : '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Slot Op.</span><span class="ui-key-value">${row.slotOperator || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Booking</span><span class="ui-key-value">${row.booking || '-'}</span></div>
+                        ${isReefer ? `<div class="ui-key-row"><span class="ui-key-label">Setpoint</span><span class="ui-key-value" style="color:#1565c0; font-weight:800;">${row.setpoint ? row.setpoint + ' °C' : '-'}</span></div>` : ''}
+                        ${isReefer && row.humedad ? `<div class="ui-key-row"><span class="ui-key-label">Humedad</span><span class="ui-key-value">${row.humedad}%</span></div>` : ''}
+                        ${isDangerous ? `<div class="ui-key-row"><span class="ui-key-label">IMDG</span><span class="ui-key-value" style="color:#e53935; font-weight:800;">${row.imdg || '-'}</span></div>` : ''}
+                        ${isDangerous && row.unNumber ? `<div class="ui-key-row"><span class="ui-key-label">UN Nº</span><span class="ui-key-value" style="color:#e53935;">${row.unNumber}</span></div>` : ''}
                     </div>
                 </div>
 
-                <!-- PANEL DERECHO: formulario de edición -->
+                <!-- PANEL DERECHO -->
                 <div class="ui-right-panel">
-                    <div class="ui-section-title" style="color:${accentColor};">📍 Posición</div>
-                    <div class="ui-form-grid ui-grid-4">
-                        <div class="ui-field"><label>POSICION</label><input type="text" id="edit_posicion" value="${row.posicion||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>BAY</label><input type="text" id="edit_bay" value="${row.bay||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>ROW</label><input type="text" id="edit_row" value="${row.row||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>TIER</label><input type="text" id="edit_tier" value="${row.tier||''}" class="edit-modal-input"></div>
-                    </div>
 
-                    <div class="ui-section-title" style="color:${accentColor};">📦 Contenedor</div>
-                    <div class="ui-form-grid ui-grid-4">
-                        <div class="ui-field" style="grid-column:span 2;"><label>NÚMERO</label><input type="text" id="edit_numero" value="${row.numero||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>ISO CODE</label><input type="text" id="edit_isoCode" value="${row.isoCode||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>TAMAÑO</label>
-                            <select id="edit_tamaño" class="edit-modal-input">
-                                <option value="20'" ${row['tamaño']==="20'"?'selected':''}>20'</option>
-                                <option value="40'" ${row['tamaño']==="40'"?'selected':''}>40'</option>
-                                <option value="45'" ${row['tamaño']==="45'"?'selected':''}>45'</option>
-                            </select>
+                    <!-- MODO VISTA (por defecto) -->
+                    <div id="uiViewMode">
+                        <div class="ui-section-title" style="color:${accentColor};">🚢 Ruta</div>
+                        <div class="ui-view-grid">
+                            <div class="ui-view-item"><span class="ui-view-label">POL</span><span class="ui-view-value">${row.pol || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">POD</span><span class="ui-view-value">${row.pod || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">Descarga</span><span class="ui-view-value">${row.descarga || '-'}</span></div>
                         </div>
-                        <div class="ui-field"><label>TIPO</label><input type="text" id="edit_tipo" value="${row.tipo||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>PESO (kg)</label><input type="text" id="edit_peso" value="${row.peso||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>SLOT OP.</label><input type="text" id="edit_slotOperator" value="${row.slotOperator||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>BOOKING</label><input type="text" id="edit_booking" value="${row.booking||''}" class="edit-modal-input"></div>
-                    </div>
 
-                    <div class="ui-section-title" style="color:${accentColor};">🚢 Ruta</div>
-                    <div class="ui-form-grid ui-grid-3">
-                        <div class="ui-field"><label>POL</label><input type="text" id="edit_pol" value="${row.pol||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>POD</label><input type="text" id="edit_pod" value="${row.pod||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>DESCARGA</label><input type="text" id="edit_descarga" value="${row.descarga||''}" class="edit-modal-input"></div>
-                    </div>
+                        <div class="ui-section-title" style="color:${accentColor};">📦 Contenedor</div>
+                        <div class="ui-view-grid ui-view-grid-4">
+                            <div class="ui-view-item"><span class="ui-view-label">Tamaño</span><span class="ui-view-value">${row.tamaño || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">Tipo</span><span class="ui-view-value">${row.tipo || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">ISO Code</span><span class="ui-view-value ui-mono">${row.isoCode || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">Peligroso</span><span class="ui-view-value">${row.peligroso || 'No'}</span></div>
+                        </div>
 
-                    ${isReefer || isDangerous ? `
-                    <div class="ui-section-title" style="color:${accentColor};">${isReefer ? '❄️ Reefer' : '⚠️ IMO'}</div>
-                    <div class="ui-form-grid ui-grid-3">
                         ${isReefer ? `
-                        <div class="ui-field"><label>SETPOINT</label><input type="text" id="edit_setpoint" value="${row.setpoint||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>HUMEDAD</label><input type="text" id="edit_humedad" value="${row.humedad||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>VENTIL.</label><input type="text" id="edit_ventilacion" value="${row.ventilacion||''}" class="edit-modal-input"></div>
-                        ` : ''}
+                        <div class="ui-section-title" style="color:${accentColor};">❄️ Temperatura</div>
+                        <div class="ui-view-grid">
+                            <div class="ui-view-item"><span class="ui-view-label">Setpoint</span><span class="ui-view-value" style="color:#1565c0; font-size:18px; font-weight:800;">${row.setpoint ? row.setpoint + ' °C' : '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">Humedad</span><span class="ui-view-value">${row.humedad || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">Ventilación</span><span class="ui-view-value">${row.ventilacion || '-'}</span></div>
+                        </div>` : ''}
+
                         ${isDangerous ? `
-                        <div class="ui-field"><label>IMDG</label><input type="text" id="edit_imdg" value="${row.imdg||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>UN NUMBER</label><input type="text" id="edit_unNumber" value="${row.unNumber||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>PELIGROSO</label><input type="text" id="edit_peligroso" value="${row.peligroso||''}" class="edit-modal-input"></div>
-                        ` : ''}
-                    </div>` : `
-                    <div class="ui-form-grid ui-grid-3" style="margin-top:8px;">
-                        <div class="ui-field"><label>SETPOINT</label><input type="text" id="edit_setpoint" value="${row.setpoint||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>HUMEDAD</label><input type="text" id="edit_humedad" value="${row.humedad||''}" class="edit-modal-input"></div>
-                        <div class="ui-field"><label>VENTIL.</label><input type="text" id="edit_ventilacion" value="${row.ventilacion||''}" class="edit-modal-input"></div>
-                    </div>`}
+                        <div class="ui-section-title" style="color:#e53935;">⚠️ Mercancía Peligrosa</div>
+                        <div class="ui-view-grid">
+                            <div class="ui-view-item"><span class="ui-view-label">Clase IMDG</span><span class="ui-view-value" style="color:#e53935; font-size:18px; font-weight:800;">${row.imdg || '-'}</span></div>
+                            <div class="ui-view-item"><span class="ui-view-label">UN Number</span><span class="ui-view-value" style="color:#e53935; font-weight:700;">${row.unNumber || '-'}</span></div>
+                        </div>` : ''}
+
+                        <div class="ui-edit-hint">✏️ Hacé clic en el lápiz para editar</div>
+                    </div>
+
+                    <!-- MODO EDICIÓN (oculto por defecto) -->
+                    <div id="uiEditMode" style="display:none;">
+                        <div class="ui-section-title" style="color:${accentColor};">📍 Posición</div>
+                        <div class="ui-form-grid ui-grid-4">
+                            <div class="ui-field"><label>POSICION</label><input type="text" id="edit_posicion" value="${row.posicion||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>BAY</label><input type="text" id="edit_bay" value="${row.bay||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>ROW</label><input type="text" id="edit_row" value="${row.row||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>TIER</label><input type="text" id="edit_tier" value="${row.tier||''}" class="edit-modal-input"></div>
+                        </div>
+
+                        <div class="ui-section-title" style="color:${accentColor};">📦 Contenedor</div>
+                        <div class="ui-form-grid ui-grid-4">
+                            <div class="ui-field" style="grid-column:span 2;"><label>NÚMERO</label><input type="text" id="edit_numero" value="${row.numero||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>ISO CODE</label><input type="text" id="edit_isoCode" value="${row.isoCode||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>TAMAÑO</label>
+                                <select id="edit_tamaño" class="edit-modal-input">
+                                    <option value="20'" ${row['tamaño']==="20'"?'selected':''}>20'</option>
+                                    <option value="40'" ${row['tamaño']==="40'"?'selected':''}>40'</option>
+                                    <option value="45'" ${row['tamaño']==="45'"?'selected':''}>45'</option>
+                                </select>
+                            </div>
+                            <div class="ui-field"><label>TIPO</label><input type="text" id="edit_tipo" value="${row.tipo||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>PESO (kg)</label><input type="text" id="edit_peso" value="${row.peso||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>SLOT OP.</label><input type="text" id="edit_slotOperator" value="${row.slotOperator||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>BOOKING</label><input type="text" id="edit_booking" value="${row.booking||''}" class="edit-modal-input"></div>
+                        </div>
+
+                        <div class="ui-section-title" style="color:${accentColor};">🚢 Ruta</div>
+                        <div class="ui-form-grid ui-grid-3">
+                            <div class="ui-field"><label>POL</label><input type="text" id="edit_pol" value="${row.pol||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>POD</label><input type="text" id="edit_pod" value="${row.pod||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>DESCARGA</label><input type="text" id="edit_descarga" value="${row.descarga||''}" class="edit-modal-input"></div>
+                        </div>
+
+                        <div class="ui-section-title" style="color:${accentColor};">🌡️ Reefer / ⚠️ IMO</div>
+                        <div class="ui-form-grid ui-grid-3">
+                            <div class="ui-field"><label>SETPOINT</label><input type="text" id="edit_setpoint" value="${row.setpoint||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>HUMEDAD</label><input type="text" id="edit_humedad" value="${row.humedad||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>VENTILACIÓN</label><input type="text" id="edit_ventilacion" value="${row.ventilacion||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>PELIGROSO</label><input type="text" id="edit_peligroso" value="${row.peligroso||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>IMDG</label><input type="text" id="edit_imdg" value="${row.imdg||''}" class="edit-modal-input"></div>
+                            <div class="ui-field"><label>UN NUMBER</label><input type="text" id="edit_unNumber" value="${row.unNumber||''}" class="edit-modal-input"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- FOOTER -->
             <div class="ui-footer">
-                <button class="btn btn-secondary" onclick="closeEditModal()">❌ Cancelar</button>
-                <button class="btn btn-success" onclick="saveEditModal(${rowIndex})">💾 Guardar cambios</button>
+                <div id="uiFooterView">
+                    <button class="btn btn-secondary" onclick="closeEditModal()">Cerrar</button>
+                </div>
+                <div id="uiFooterEdit" style="display:none; gap:10px; display:none;">
+                    <button class="btn btn-secondary" onclick="cancelInspectorEdit()">❌ Cancelar</button>
+                    <button class="btn btn-success" onclick="saveEditModal(${rowIndex})">💾 Guardar cambios</button>
+                </div>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
 }
+
+function copyContainerNumber(numero, el) {
+    if (!numero) return;
+    navigator.clipboard.writeText(numero).then(() => {
+        const icon = el.querySelector('.ui-copy-icon');
+        const prev = icon.textContent;
+        icon.textContent = '✅';
+        el.style.opacity = '0.7';
+        setTimeout(() => { icon.textContent = prev; el.style.opacity = '1'; }, 1500);
+    });
+}
+
+function toggleInspectorEdit() {
+    const viewMode = document.getElementById('uiViewMode');
+    const editMode = document.getElementById('uiEditMode');
+    const footerView = document.getElementById('uiFooterView');
+    const footerEdit = document.getElementById('uiFooterEdit');
+    const btn = document.getElementById('uiPencilBtn');
+
+    const isEditing = editMode.style.display !== 'none';
+    if (isEditing) {
+        // back to view
+        viewMode.style.display = 'block';
+        editMode.style.display = 'none';
+        footerView.style.display = 'block';
+        footerEdit.style.display = 'none';
+        btn.style.background = '';
+        btn.style.outline = '';
+    } else {
+        // enter edit
+        viewMode.style.display = 'none';
+        editMode.style.display = 'block';
+        footerView.style.display = 'none';
+        footerEdit.style.display = 'flex';
+        btn.style.background = 'rgba(255,255,255,0.5)';
+        btn.style.outline = '2px solid white';
+    }
+}
+
+function cancelInspectorEdit() {
+    toggleInspectorEdit();
+}
+
 
 function closeEditModal() {
     const modal = document.getElementById('editModal');
