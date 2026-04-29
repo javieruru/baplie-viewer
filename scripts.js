@@ -798,46 +798,163 @@ document.addEventListener('DOMContentLoaded', () => {
 function openEditModal(rowIndex) {
     const row = containersData[rowIndex];
     const keys = Object.keys(row);
+    const excludeFields = ['id', 'descripcion'];
+
+    // Determinar tipo visual del contenedor
+    const isReefer    = row.tipo === 'Reefer';
+    const isDangerous = row.peligroso === 'Sí';
+    const isOpenTop   = row.tipo === 'Open Top';
+    const isFlatRack  = row.tipo === 'Flat Rack';
+    const is20        = row.tamaño === "20'";
+
+    // Color de acento según tipo
+    const accentColor = isDangerous ? '#e53935'
+                      : isReefer    ? '#1976d2'
+                      : isOpenTop   ? '#f57c00'
+                      : isFlatRack  ? '#6d4c41'
+                      : '#388e3c';
+
+    const typeLabel = isDangerous ? '⚠️ Peligroso'
+                    : isReefer    ? '❄️ Reefer'
+                    : isOpenTop   ? '📭 Open Top'
+                    : isFlatRack  ? '📋 Flat Rack'
+                    : '📦 Standard';
+
+    // SVG del contenedor según tamaño y tipo
+    function containerSVG() {
+        const w = is20 ? 120 : 200;
+        const h = 70;
+        const color = isDangerous ? '#ffcdd2'
+                    : isReefer    ? '#bbdefb'
+                    : isOpenTop   ? '#ffe0b2'
+                    : '#e8f5e9';
+        const stripe = isDangerous ? '#e53935'
+                     : isReefer    ? '#1976d2'
+                     : isOpenTop   ? '#f57c00'
+                     : '#388e3c';
+
+        const topPanel = isOpenTop ? '' : `<rect x="2" y="2" width="${w-4}" height="12" rx="2" fill="${stripe}" opacity="0.7"/>`;
+        const reeferLines = isReefer ? `
+            <line x1="20" y1="18" x2="20" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="40" y1="18" x2="40" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="60" y1="18" x2="60" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            ${!is20 ? `<line x1="80" y1="18" x2="80" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="100" y1="18" x2="100" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="120" y1="18" x2="120" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="140" y1="18" x2="140" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>
+            <line x1="160" y1="18" x2="160" y2="${h-8}" stroke="${stripe}" stroke-width="1.5" opacity="0.4"/>` : ''}` : '';
+        const hazmat = isDangerous ? `
+            <polygon points="${w/2},${h/2-14} ${w/2-12},${h/2+6} ${w/2+12},${h/2+6}" fill="#e53935" opacity="0.85"/>
+            <text x="${w/2}" y="${h/2+4}" text-anchor="middle" fill="white" font-size="10" font-weight="bold">!</text>` : '';
+        const snowflake = isReefer ? `<text x="${w/2}" y="${h/2+8}" text-anchor="middle" fill="${stripe}" font-size="22" opacity="0.35">❄</text>` : '';
+        const openTopTop = isOpenTop ? `<line x1="2" y1="8" x2="${w-2}" y2="8" stroke="${stripe}" stroke-width="2" stroke-dasharray="6,4" opacity="0.7"/>` : '';
+
+        return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="${w-2}" height="${h-2}" rx="4" fill="${color}" stroke="${stripe}" stroke-width="2"/>
+            ${topPanel}
+            ${reeferLines}${snowflake}${hazmat}${openTopTop}
+            <rect x="${w-16}" y="8" width="12" height="${h-16}" rx="2" fill="${stripe}" opacity="0.25"/>
+            <rect x="4" y="${h-10}" width="${w-8}" height="6" rx="2" fill="${stripe}" opacity="0.2"/>
+        </svg>`;
+    }
+
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.id = 'editModal';
-    const excludeFields = ['id', 'descripcion'];
+    modal.style.zIndex = '999999';
 
     modal.innerHTML = `
-        <div class="edit-modal-content">
-            <h3>✏️ Editar Contenedor</h3>
-            <div class="edit-form">
-                ${keys.filter(key => !excludeFields.includes(key.toLowerCase())).map(key => {
-        const isTamano = key.toLowerCase() === 'tamaño';
-        if (isTamano) {
-            return `
-                            <div class="edit-field">
-                                <label>${key.toUpperCase()}:</label>
-                                <select id="edit_${key}" class="edit-modal-input">
-                                    <option value="20'" ${row[key] === "20'" ? 'selected' : ''}>20'</option>
-                                    <option value="40'" ${row[key] === "40'" ? 'selected' : ''}>40'</option>
-                                    <option value="45'" ${row[key] === "45'" ? 'selected' : ''}>45'</option>
-                                </select>
-                            </div>
-                        `;
-        } else {
-            return `
-                            <div class="edit-field">
-                                <label>${key.toUpperCase()}:</label>
-                                <input 
-                                    type="text" 
-                                    id="edit_${key}" 
-                                    value="${row[key] || ''}"
-                                    class="edit-modal-input"
-                                >
-                            </div>
-                        `;
-        }
-    }).join('')}
+        <div class="unit-inspector-modal">
+            <!-- HEADER -->
+            <div class="ui-header" style="background:${accentColor};">
+                <div class="ui-header-left">
+                    <span class="ui-title">🔍 Unit Inspector</span>
+                    <span class="ui-subtitle">${row.numero || 'Sin número'}</span>
+                </div>
+                <div class="ui-header-right">
+                    <span class="ui-type-badge">${typeLabel}</span>
+                    <button class="ui-close-btn" onclick="closeEditModal()">✕</button>
+                </div>
             </div>
-            <div class="modal-buttons">
+
+            <!-- BODY -->
+            <div class="ui-body">
+                <!-- PANEL IZQUIERDO: imagen + datos clave -->
+                <div class="ui-left-panel">
+                    <div class="ui-container-visual">
+                        ${containerSVG()}
+                        <div class="ui-container-label">${row.tamaño || ''} ${row.tipo || ''}</div>
+                    </div>
+                    <div class="ui-key-info">
+                        <div class="ui-key-row"><span class="ui-key-label">Número</span><span class="ui-key-value ui-mono">${row.numero || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">ISO Code</span><span class="ui-key-value ui-mono">${row.isoCode || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Posición</span><span class="ui-key-value ui-mono" style="color:${accentColor}; font-weight:700;">${row.posicion || '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Peso VGM</span><span class="ui-key-value">${row.peso ? row.peso + ' kg' : '-'}</span></div>
+                        ${isReefer ? `<div class="ui-key-row"><span class="ui-key-label">Setpoint</span><span class="ui-key-value" style="color:#1976d2; font-weight:700;">${row.setpoint || '-'} °C</span></div>` : ''}
+                        ${isDangerous ? `<div class="ui-key-row"><span class="ui-key-label">IMDG</span><span class="ui-key-value" style="color:#e53935; font-weight:700;">${row.imdg || '-'}</span></div>` : ''}
+                    </div>
+                </div>
+
+                <!-- PANEL DERECHO: formulario de edición -->
+                <div class="ui-right-panel">
+                    <div class="ui-section-title" style="color:${accentColor};">📍 Posición</div>
+                    <div class="ui-form-grid ui-grid-4">
+                        <div class="ui-field"><label>POSICION</label><input type="text" id="edit_posicion" value="${row.posicion||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>BAY</label><input type="text" id="edit_bay" value="${row.bay||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>ROW</label><input type="text" id="edit_row" value="${row.row||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>TIER</label><input type="text" id="edit_tier" value="${row.tier||''}" class="edit-modal-input"></div>
+                    </div>
+
+                    <div class="ui-section-title" style="color:${accentColor};">📦 Contenedor</div>
+                    <div class="ui-form-grid ui-grid-4">
+                        <div class="ui-field" style="grid-column:span 2;"><label>NÚMERO</label><input type="text" id="edit_numero" value="${row.numero||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>ISO CODE</label><input type="text" id="edit_isoCode" value="${row.isoCode||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>TAMAÑO</label>
+                            <select id="edit_tamaño" class="edit-modal-input">
+                                <option value="20'" ${row['tamaño']==="20'"?'selected':''}>20'</option>
+                                <option value="40'" ${row['tamaño']==="40'"?'selected':''}>40'</option>
+                                <option value="45'" ${row['tamaño']==="45'"?'selected':''}>45'</option>
+                            </select>
+                        </div>
+                        <div class="ui-field"><label>TIPO</label><input type="text" id="edit_tipo" value="${row.tipo||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>PESO (kg)</label><input type="text" id="edit_peso" value="${row.peso||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>SLOT OP.</label><input type="text" id="edit_slotOperator" value="${row.slotOperator||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>BOOKING</label><input type="text" id="edit_booking" value="${row.booking||''}" class="edit-modal-input"></div>
+                    </div>
+
+                    <div class="ui-section-title" style="color:${accentColor};">🚢 Ruta</div>
+                    <div class="ui-form-grid ui-grid-3">
+                        <div class="ui-field"><label>POL</label><input type="text" id="edit_pol" value="${row.pol||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>POD</label><input type="text" id="edit_pod" value="${row.pod||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>DESCARGA</label><input type="text" id="edit_descarga" value="${row.descarga||''}" class="edit-modal-input"></div>
+                    </div>
+
+                    ${isReefer || isDangerous ? `
+                    <div class="ui-section-title" style="color:${accentColor};">${isReefer ? '❄️ Reefer' : '⚠️ IMO'}</div>
+                    <div class="ui-form-grid ui-grid-3">
+                        ${isReefer ? `
+                        <div class="ui-field"><label>SETPOINT</label><input type="text" id="edit_setpoint" value="${row.setpoint||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>HUMEDAD</label><input type="text" id="edit_humedad" value="${row.humedad||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>VENTIL.</label><input type="text" id="edit_ventilacion" value="${row.ventilacion||''}" class="edit-modal-input"></div>
+                        ` : ''}
+                        ${isDangerous ? `
+                        <div class="ui-field"><label>IMDG</label><input type="text" id="edit_imdg" value="${row.imdg||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>UN NUMBER</label><input type="text" id="edit_unNumber" value="${row.unNumber||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>PELIGROSO</label><input type="text" id="edit_peligroso" value="${row.peligroso||''}" class="edit-modal-input"></div>
+                        ` : ''}
+                    </div>` : `
+                    <div class="ui-form-grid ui-grid-3" style="margin-top:8px;">
+                        <div class="ui-field"><label>SETPOINT</label><input type="text" id="edit_setpoint" value="${row.setpoint||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>HUMEDAD</label><input type="text" id="edit_humedad" value="${row.humedad||''}" class="edit-modal-input"></div>
+                        <div class="ui-field"><label>VENTIL.</label><input type="text" id="edit_ventilacion" value="${row.ventilacion||''}" class="edit-modal-input"></div>
+                    </div>`}
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="ui-footer">
                 <button class="btn btn-secondary" onclick="closeEditModal()">❌ Cancelar</button>
-                <button class="btn btn-success" onclick="saveEditModal(${rowIndex})">💾 Guardar</button>
+                <button class="btn btn-success" onclick="saveEditModal(${rowIndex})">💾 Guardar cambios</button>
             </div>
         </div>
     `;
