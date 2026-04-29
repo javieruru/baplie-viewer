@@ -672,22 +672,35 @@ function renderTable() {
         </th>`;
     }).join('');
 
+    // Remove old datalists from body
+    document.querySelectorAll('datalist[id^="dl_"]').forEach(d => d.remove());
+
+    // Build datalists and append to body (can't live inside <table>)
+    const datalistContainer = document.createDocumentFragment();
+    headers.forEach(key => {
+        if (key === 'id') return;
+        const uniqVals = [...new Set(
+            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v && v.length < 30)
+        )].sort().slice(0, 80);
+        const dl = document.createElement('datalist');
+        dl.id = `dl_${key}`;
+        uniqVals.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            dl.appendChild(opt);
+        });
+        datalistContainer.appendChild(dl);
+    });
+    document.body.appendChild(datalistContainer);
+
     filterRow.innerHTML = headers.map(key => {
         const isId = key === 'id';
         const width = COL_WIDTHS[key] || '90px';
         if (isId) return `<th style="width:${width}; min-width:${width};"><span class="filter-label-id">Filtrar...</span></th>`;
-
-        // Build unique values for datalist
-        const uniqVals = [...new Set(
-            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v && v.length < 30)
-        )].sort().slice(0, 50);
-        const listId = `dl_${key}`;
-        const datalistHtml = `<datalist id="${listId}">${uniqVals.map(v => `<option value="${v}">`).join('')}</datalist>`;
-
         return `<th style="width:${width}; min-width:${width}; position:relative;">
-            ${datalistHtml}
             <input type="text" class="filter-input" placeholder="▼" data-col="${key}"
-                list="${listId}"
+                list="dl_${key}"
+                value="${filters[key] || ''}"
                 onkeyup="filterColumn('${key}', this.value)"
                 onchange="filterColumn('${key}', this.value)">
         </th>`;
@@ -744,7 +757,6 @@ function showStats() {
 
 function quickFilter(type) {
     const statMap = { vacios:'fstatVacios', llenos:'fstatLlenos', reefers:'fstatReefers', imos:'fstatImos' };
-    // Toggle off if same filter clicked again
     if (activeQuickFilter === type) {
         activeQuickFilter = null;
         Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
@@ -756,7 +768,6 @@ function quickFilter(type) {
     Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
     const activeEl = document.getElementById(statMap[type]);
     if (activeEl) activeEl.classList.add('footer-stat-active');
-
     containersData = originalData.filter(c => {
         if (type === 'llenos')  return c.estado === 'Lleno';
         if (type === 'vacios')  return c.estado === 'Vacío';
