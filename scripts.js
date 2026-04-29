@@ -27,6 +27,30 @@ function initBaplieStorage() {
         localStorage.setItem('baplies', JSON.stringify([]));
     }
     baplies = JSON.parse(localStorage.getItem('baplies'));
+    migrateBaplies();
+}
+
+function migrateBaplies() {
+    let changed = false;
+    baplies.forEach(baplie => {
+        if (!baplie.containers) return;
+        baplie.containers.forEach(c => {
+            if (c.estado === undefined || c.estado === '') {
+                const p = parseFloat(c.peso);
+                c.estado = (!c.peso || isNaN(p) || p === 0) ? 'Vacío' : 'Lleno';
+                changed = true;
+            }
+            if (c.bay && c.bay.length === 3 && c.bay[0] === '0') {
+                c.bay = c.bay.replace(/^0/, '');
+                changed = true;
+            }
+            if (c.posicion && c.posicion.length === 7 && c.posicion[0] === '0') {
+                c.posicion = c.posicion.substring(1);
+                changed = true;
+            }
+        });
+    });
+    if (changed) localStorage.setItem('baplies', JSON.stringify(baplies));
 }
 
 function saveBaplieStorage() {
@@ -402,9 +426,6 @@ function viewBaplie(index) {
     renderTable();
     showStats();
     document.getElementById('tableFooter').classList.add('active');
-    const qfBar = document.getElementById('quickFilterBar');
-    if (qfBar) qfBar.classList.add('visible');
-
     // Panel de diagnóstico
     renderDiagnosticsPanel(baplie.parseWarnings || []);
 }
@@ -508,9 +529,10 @@ function backToList() {
     // Limpiar panel de diagnóstico y filtro rápido
     const dp = document.getElementById('diagnosticsPanel');
     if (dp) dp.remove();
-    const qfBar = document.getElementById('quickFilterBar');
-    if (qfBar) { qfBar.classList.remove('visible'); document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active')); }
     activeQuickFilter = null;
+    ['fstatVacios','fstatLlenos','fstatReefers','fstatImos'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.classList.remove('footer-stat-active');
+    });
 
     document.getElementById('contentSection').style.display = 'none';
     document.getElementById('baplieListSection').style.display = 'flex';
@@ -633,8 +655,12 @@ function renderTable() {
 
     if (containersData.length === 0) return;
 
+    const COLUMN_ORDER = ['id','posicion','bay','row','tier','numero','isoCode','tamaño','estado',
+        'peso','setpoint','humedad','ventilacion','pol','pod','descarga','booking','slotOperator',
+        'peligroso','imdg','unNumber'];
     const allKeys = Object.keys(containersData[0]);
-    const headers = allKeys.filter(k => !HIDDEN_COLS.includes(k));
+    const extraKeys = allKeys.filter(k => !COLUMN_ORDER.includes(k) && !HIDDEN_COLS.includes(k));
+    const headers = [...COLUMN_ORDER, ...extraKeys].filter(k => !HIDDEN_COLS.includes(k));
 
     thead.innerHTML = headers.map(key => {
         const isId = key === 'id';
@@ -714,29 +740,22 @@ function showStats() {
     document.getElementById('footerImos').textContent = dangerous;
     document.getElementById('footerVessel').textContent = vesselName;
 
-    // Update quick filter counts
-    const qfcL = document.getElementById('qfcLlenos');
-    const qfcV = document.getElementById('qfcVacios');
-    const qfcR = document.getElementById('qfcReefers');
-    const qfcI = document.getElementById('qfcImos');
-    if (qfcL) qfcL.textContent = loaded;
-    if (qfcV) qfcV.textContent = empty;
-    if (qfcR) qfcR.textContent = reefers;
-    if (qfcI) qfcI.textContent = dangerous;
 }
 
 function quickFilter(type) {
+    const statMap = { vacios:'fstatVacios', llenos:'fstatLlenos', reefers:'fstatReefers', imos:'fstatImos' };
     // Toggle off if same filter clicked again
     if (activeQuickFilter === type) {
         activeQuickFilter = null;
-        document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
+        Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
         containersData = JSON.parse(JSON.stringify(originalData));
         renderTable();
         return;
     }
     activeQuickFilter = type;
-    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
-    document.getElementById('qf-' + type).classList.add('qf-active');
+    Object.values(statMap).forEach(id => { const el=document.getElementById(id); if(el) el.classList.remove('footer-stat-active'); });
+    const activeEl = document.getElementById(statMap[type]);
+    if (activeEl) activeEl.classList.add('footer-stat-active');
 
     containersData = originalData.filter(c => {
         if (type === 'llenos')  return c.estado === 'Lleno';
@@ -1314,7 +1333,9 @@ function clearSingleFilter(col) {
 function clearFilters() {
     filters = {};
     activeQuickFilter = null;
-    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
+    ['fstatVacios','fstatLlenos','fstatReefers','fstatImos'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.classList.remove('footer-stat-active');
+    });
     containersData = JSON.parse(JSON.stringify(originalData));
     const globalSearch = document.getElementById('globalSearch');
     if (globalSearch) globalSearch.value = '';

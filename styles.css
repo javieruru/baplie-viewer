@@ -1682,3 +1682,25 @@ tbody tr.empty-row { background: #fafafa !important; color: #aaa; }
     font-size: 10px;
     text-align: center;
 }
+
+/* === FOOTER STAT CLICKABLE === */
+.footer-stat-clickable {
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    padding: 8px 12px;
+    border: 2px solid transparent;
+}
+.footer-stat-clickable:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: rgba(255,255,255,0.4);
+    transform: translateY(-2px);
+}
+.footer-stat-active {
+    background: rgba(255,255,255,0.25) !important;
+    border-color: rgba(255,255,255,0.8) !important;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+}
+.footer-stat-active .footer-value {
+    text-decoration: underline;
+}

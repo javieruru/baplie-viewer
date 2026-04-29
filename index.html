@@ -66,15 +66,6 @@
         </div>
       </div>
 
-      <!-- QUICK FILTER BAR -->
-      <div class="quick-filter-bar" id="quickFilterBar">
-        <span class="qf-label">Filtro rápido:</span>
-        <button id="qf-llenos"  class="qf-btn qf-llenos"  onclick="quickFilter('llenos')">📦 Llenos <span class="qf-count" id="qfcLlenos">0</span></button>
-        <button id="qf-vacios"  class="qf-btn qf-vacios"  onclick="quickFilter('vacios')">📭 Vacíos <span class="qf-count" id="qfcVacios">0</span></button>
-        <button id="qf-reefers" class="qf-btn qf-reefers" onclick="quickFilter('reefers')">❄️ Reefers <span class="qf-count" id="qfcReefers">0</span></button>
-        <button id="qf-imos"    class="qf-btn qf-imos"    onclick="quickFilter('imos')">⚠️ IMOs <span class="qf-count" id="qfcImos">0</span></button>
-      </div>
-
       <div class="table-container">
         <table id="baplieListTable">
           <thead>
@@ -142,19 +133,19 @@
           <span class="footer-label">⚖️ Toneladas:</span>
           <span class="footer-value" id="footerWeight">0</span>
         </div>
-        <div class="footer-stat">
+        <div class="footer-stat footer-stat-clickable" onclick="quickFilter('vacios')" id="fstatVacios" title="Filtrar vacíos">
           <span class="footer-label">📭 Vacíos:</span>
           <span class="footer-value" id="footerEmpty">0</span>
         </div>
-        <div class="footer-stat">
+        <div class="footer-stat footer-stat-clickable" onclick="quickFilter('llenos')" id="fstatLlenos" title="Filtrar llenos">
           <span class="footer-label">📦 Llenos:</span>
           <span class="footer-value" id="footerLoaded">0</span>
         </div>
-        <div class="footer-stat">
+        <div class="footer-stat footer-stat-clickable" onclick="quickFilter('reefers')" id="fstatReefers" title="Filtrar reefers">
           <span class="footer-label">❄️ Reefers:</span>
           <span class="footer-value" id="footerReefers">0</span>
         </div>
-        <div class="footer-stat">
+        <div class="footer-stat footer-stat-clickable" onclick="quickFilter('imos')" id="fstatImos" title="Filtrar IMOs">
           <span class="footer-label">⚠️ IMOs:</span>
           <span class="footer-value" id="footerImos">0</span>
         </div>
