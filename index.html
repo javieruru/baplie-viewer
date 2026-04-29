@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lector BAPLIE</title>
   <link rel="stylesheet" href="styles.css">
-  
 </head>
 
 <body>
@@ -65,6 +64,15 @@
             🚢 Vista 3D
           </button>
         </div>
+      </div>
+
+      <!-- QUICK FILTER BAR -->
+      <div class="quick-filter-bar" id="quickFilterBar">
+        <span class="qf-label">Filtro rápido:</span>
+        <button id="qf-llenos"  class="qf-btn qf-llenos"  onclick="quickFilter('llenos')">📦 Llenos <span class="qf-count" id="qfcLlenos">0</span></button>
+        <button id="qf-vacios"  class="qf-btn qf-vacios"  onclick="quickFilter('vacios')">📭 Vacíos <span class="qf-count" id="qfcVacios">0</span></button>
+        <button id="qf-reefers" class="qf-btn qf-reefers" onclick="quickFilter('reefers')">❄️ Reefers <span class="qf-count" id="qfcReefers">0</span></button>
+        <button id="qf-imos"    class="qf-btn qf-imos"    onclick="quickFilter('imos')">⚠️ IMOs <span class="qf-count" id="qfcImos">0</span></button>
       </div>
 
       <div class="table-container">
@@ -137,6 +145,10 @@
         <div class="footer-stat">
           <span class="footer-label">📭 Vacíos:</span>
           <span class="footer-value" id="footerEmpty">0</span>
+        </div>
+        <div class="footer-stat">
+          <span class="footer-label">📦 Llenos:</span>
+          <span class="footer-value" id="footerLoaded">0</span>
         </div>
         <div class="footer-stat">
           <span class="footer-label">❄️ Reefers:</span>
@@ -236,7 +248,6 @@
   </div>
 
   <script src="scripts.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </body>
 
 </html>

@@ -175,6 +175,17 @@ function parseBALPIEToObject(content, fileName) {
         if (!currentContainer.pod) {
             parseWarnings.push({ type: 'warning', msg: `Contenedor ${currentContainer.numero || currentContainer.posicion}: sin LOC+11 (POD).` });
         }
+        // Calcular estado: lleno o vacío
+        const pesoNum = parseFloat(currentContainer.peso);
+        currentContainer.estado = (!currentContainer.peso || isNaN(pesoNum) || pesoNum === 0) ? 'Vacío' : 'Lleno';
+        // Normalizar bay: quitar primer 0 si tiene 3 dígitos -> 006 -> 06
+        if (currentContainer.bay && currentContainer.bay.length === 3) {
+            currentContainer.bay = currentContainer.bay.replace(/^0/, '');
+        }
+        // Normalizar posicion: quitar primer 0 -> 0061280 -> 061280
+        if (currentContainer.posicion && currentContainer.posicion.length === 7 && currentContainer.posicion[0] === '0') {
+            currentContainer.posicion = currentContainer.posicion.substring(1);
+        }
         containers.push({ ...currentContainer });
         containerCount++;
     }
@@ -190,7 +201,7 @@ function parseBALPIEToObject(content, fileName) {
             flushContainer();
             currentContainer = {
                 posicion: '', bay: '', row: '', tier: '',
-                numero: '', isoCode: '', tamaño: '', tipo: '',
+                numero: '', isoCode: '', tamaño: '', tipo: '', estado: '',
                 peso: '', setpoint: '', humedad: '', ventilacion: '',
                 pol: '', pod: '', descarga: '', booking: '', slotOperator: '',
                 peligroso: '', imdg: '', unNumber: '', descripcion: ''
@@ -391,6 +402,8 @@ function viewBaplie(index) {
     renderTable();
     showStats();
     document.getElementById('tableFooter').classList.add('active');
+    const qfBar = document.getElementById('quickFilterBar');
+    if (qfBar) qfBar.classList.add('visible');
 
     // Panel de diagnóstico
     renderDiagnosticsPanel(baplie.parseWarnings || []);
@@ -492,9 +505,12 @@ function backToList() {
         saveBaplieStorage();
     }
 
-    // Limpiar panel de diagnóstico
+    // Limpiar panel de diagnóstico y filtro rápido
     const dp = document.getElementById('diagnosticsPanel');
     if (dp) dp.remove();
+    const qfBar = document.getElementById('quickFilterBar');
+    if (qfBar) { qfBar.classList.remove('visible'); document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active')); }
+    activeQuickFilter = null;
 
     document.getElementById('contentSection').style.display = 'none';
     document.getElementById('baplieListSection').style.display = 'flex';
@@ -598,6 +614,18 @@ function hideLoading() {
 }
 
 // ==================== RENDER TABLA ====================
+// Columnas a OCULTAR en la tabla principal
+const HIDDEN_COLS = ['tipo', 'descripcion'];
+
+const COL_WIDTHS = {
+    id: '40px', posicion: '75px', bay: '40px', row: '40px', tier: '40px',
+    numero: '125px', isoCode: '65px', tamaño: '50px', estado: '65px',
+    peso: '75px', setpoint: '65px', humedad: '65px', ventilacion: '75px',
+    pol: '60px', pod: '60px', descarga: '70px', booking: '100px',
+    slotOperator: '80px', peligroso: '70px', imdg: '55px',
+    unNumber: '80px', descripcion: '150px', tipo: '80px',
+};
+
 function renderTable() {
     const thead = document.getElementById('tableHeader');
     const filterRow = document.getElementById('filterRow');
@@ -605,105 +633,119 @@ function renderTable() {
 
     if (containersData.length === 0) return;
 
-    const headers = Object.keys(containersData[0]);
-
-    // Columnas con ancho fijo compacto
-    const colWidths = {
-        id: '40px',
-        posicion: '80px',
-        bay: '45px',
-        row: '45px',
-        tier: '45px',
-        numero: '120px',
-        isoCode: '70px',
-        tamaño: '55px',
-        tipo: '80px',
-        peso: '70px',
-        setpoint: '70px',
-        humedad: '70px',
-        ventilacion: '80px',
-        pol: '60px',
-        pod: '60px',
-        descarga: '70px',
-        booking: '100px',
-        slotOperator: '90px',
-        peligroso: '75px',
-        imdg: '60px',
-        unNumber: '80px',
-        descripcion: '150px',
-    };
+    const allKeys = Object.keys(containersData[0]);
+    const headers = allKeys.filter(k => !HIDDEN_COLS.includes(k));
 
     thead.innerHTML = headers.map(key => {
         const isId = key === 'id';
-        const width = colWidths[key] || '90px';
-        if (isId) {
-            return `<th style="width:${width}; min-width:${width}; cursor:default;">
-                        ${key.toUpperCase()}
-                    </th>`;
-        }
+        const width = COL_WIDTHS[key] || '90px';
+        const label = key === 'estado' ? 'ESTADO' : key.toUpperCase();
+        if (isId) return `<th style="width:${width}; min-width:${width}; cursor:default;">${label}</th>`;
         return `<th onclick="sortTable('${key}')" style="width:${width}; min-width:${width};">
-                    ${key.toUpperCase()}
-                    <span class="sort-icon">${sortColumn === key ? (sortDirection === 'asc' ? '▲' : '▼') : '⇅'}</span>
-                </th>`;
+            ${label}<span class="sort-icon">${sortColumn === key ? (sortDirection === 'asc' ? '▲' : '▼') : '⇅'}</span>
+        </th>`;
     }).join('');
 
-    // DESPUÉS
-    // DESPUÉS
     filterRow.innerHTML = headers.map(key => {
         const isId = key === 'id';
-        const width = colWidths[key] || '90px';
-        if (isId) {
-            return `<th style="width:${width}; min-width:${width};">
-                    <span class="filter-label-id">Filtrar...</span>
-                </th>`;
-        }
+        const width = COL_WIDTHS[key] || '90px';
+        if (isId) return `<th style="width:${width}; min-width:${width};"><span class="filter-label-id">Filtrar...</span></th>`;
+
+        // Build unique values for datalist
+        const uniqVals = [...new Set(
+            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v && v.length < 30)
+        )].sort().slice(0, 50);
+        const listId = `dl_${key}`;
+        const datalistHtml = `<datalist id="${listId}">${uniqVals.map(v => `<option value="${v}">`).join('')}</datalist>`;
+
         return `<th style="width:${width}; min-width:${width}; position:relative;">
-                <input 
-                    type="text" 
-                    class="filter-input" 
-                    placeholder=""
-                    data-col="${key}"
-                    onkeyup="filterColumn('${key}', this.value)"
-                >
-            </th>`;
+            ${datalistHtml}
+            <input type="text" class="filter-input" placeholder="▼" data-col="${key}"
+                list="${listId}"
+                onkeyup="filterColumn('${key}', this.value)"
+                onchange="filterColumn('${key}', this.value)">
+        </th>`;
     }).join('');
 
     tbody.innerHTML = containersData.map((row) => {
         const isDangerous = row.peligroso === 'Sí';
         const isReefer = row.setpoint && row.setpoint !== '';
-        const rowClass = isDangerous ? 'dangerous' : (isReefer ? 'reefer' : '');
-        return `
-            <tr class="${rowClass}">
-                ${headers.map(key => {
-            const width = colWidths[key] || '90px';
-            return `<td style="width:${width}; min-width:${width};">${row[key] || ''}</td>`;
-        }).join('')}
-            </tr>
-        `;
+        const isEmpty = row.estado === 'Vacío';
+        const rowClass = isDangerous ? 'dangerous' : isReefer ? 'reefer' : isEmpty ? 'empty-row' : '';
+        return `<tr class="${rowClass}" ondblclick="openEditModalByNum('${row.numero}')">
+            ${headers.map(key => {
+                const width = COL_WIDTHS[key] || '90px';
+                let val = row[key] || '';
+                if (key === 'estado') {
+                    const badge = val === 'Lleno'
+                        ? `<span class="estado-badge estado-lleno">Lleno</span>`
+                        : `<span class="estado-badge estado-vacio">Vacío</span>`;
+                    return `<td style="width:${width}; min-width:${width};">${badge}</td>`;
+                }
+                return `<td style="width:${width}; min-width:${width};">${val}</td>`;
+            }).join('')}
+        </tr>`;
     }).join('');
 }
 
+function openEditModalByNum(numero) {
+    const idx = containersData.findIndex(c => c.numero === numero);
+    if (idx !== -1) openEditModal(idx);
+}
+
 // ==================== ESTADÍSTICAS ====================
+let activeQuickFilter = null;
+
 function showStats() {
-    const total = containersData.length;
-    const dangerous = containersData.filter(c => c.peligroso === 'Sí').length;
-    const reefers = containersData.filter(c => c.setpoint && c.setpoint !== '').length;
-    const empty = containersData.filter(c => {
-        const peso = parseFloat(c.peso);
-        return !c.peso || peso === 0 || isNaN(peso);
-    }).length;
-    const totalWeight = containersData.reduce((sum, c) => {
-        const peso = parseFloat(c.peso);
-        return sum + (isNaN(peso) ? 0 : peso);
-    }, 0);
+    const src = originalData.length ? originalData : containersData;
+    const total     = src.length;
+    const dangerous = src.filter(c => c.peligroso === 'Sí').length;
+    const reefers   = src.filter(c => c.setpoint && c.setpoint !== '').length;
+    const empty     = src.filter(c => { const p = parseFloat(c.peso); return !c.peso || isNaN(p) || p === 0; }).length;
+    const loaded    = total - empty;
+    const totalWeight = src.reduce((s, c) => { const p = parseFloat(c.peso); return s + (isNaN(p) ? 0 : p); }, 0);
     const tons = (totalWeight / 1000).toFixed(2);
 
     document.getElementById('footerTotal').textContent = total;
     document.getElementById('footerWeight').textContent = `${tons} t`;
     document.getElementById('footerEmpty').textContent = empty;
+    document.getElementById('footerLoaded').textContent = loaded;
     document.getElementById('footerReefers').textContent = reefers;
     document.getElementById('footerImos').textContent = dangerous;
     document.getElementById('footerVessel').textContent = vesselName;
+
+    // Update quick filter counts
+    const qfcL = document.getElementById('qfcLlenos');
+    const qfcV = document.getElementById('qfcVacios');
+    const qfcR = document.getElementById('qfcReefers');
+    const qfcI = document.getElementById('qfcImos');
+    if (qfcL) qfcL.textContent = loaded;
+    if (qfcV) qfcV.textContent = empty;
+    if (qfcR) qfcR.textContent = reefers;
+    if (qfcI) qfcI.textContent = dangerous;
+}
+
+function quickFilter(type) {
+    // Toggle off if same filter clicked again
+    if (activeQuickFilter === type) {
+        activeQuickFilter = null;
+        document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
+        containersData = JSON.parse(JSON.stringify(originalData));
+        renderTable();
+        return;
+    }
+    activeQuickFilter = type;
+    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
+    document.getElementById('qf-' + type).classList.add('qf-active');
+
+    containersData = originalData.filter(c => {
+        if (type === 'llenos')  return c.estado === 'Lleno';
+        if (type === 'vacios')  return c.estado === 'Vacío';
+        if (type === 'reefers') return c.setpoint && c.setpoint !== '';
+        if (type === 'imos')    return c.peligroso === 'Sí';
+        return true;
+    });
+    renderTable();
 }
 
 // ==================== EDICIÓN ====================
@@ -796,23 +838,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function getContainerImage(row) {
-    const tamano = (row['tamaño'] || '').replace("'", '').trim(); // '20' or '40' or '45'
+    const tamano = (row['tamaño'] || '').replace(/'/g, '').trim(); // '20', '40', '45'
     const tipo   = (row.tipo    || '').toLowerCase();
     const iso    = (row.isoCode || '').toUpperCase();
+    const iso2   = iso.substring(0, 2);
+    const iso3   = iso.length >= 3 ? iso[2] : '';
 
-    // Tank: ISO starts with T, or tipo contains tank
-    if (iso.startsWith('T') || tipo.includes('tank')) return 'img/20tk.png';
-    // Flat Rack
-    if (tipo.includes('flat') || iso[2] === 'P') return 'img/flat.png';
-    // Open Top
-    if (tipo.includes('open') || iso[2] === 'U') {
+    // Tank: ISO group T, or iso starts with T
+    if (iso2.startsWith('T') || tipo.includes('tank')) return 'img/20tk.png';
+    // Flat Rack: ISO[2] = P
+    if (iso3 === 'P' || tipo.includes('flat')) return 'img/flat.png';
+    // Open Top: ISO[2] = U
+    if (iso3 === 'U' || tipo.includes('open')) {
         return tamano === '20' ? 'img/20ot.png' : 'img/40ot.png';
     }
-    // Reefer
-    if (tipo.includes('reefer') || iso[2] === 'R' || iso.endsWith('R1') || iso.endsWith('R9') || iso === '4532' || iso === '45R1') {
+    // Reefer: ISO[2] = R, or iso codes 4532, 45R1, 2232 etc.
+    const isReefer = iso3 === 'R'
+        || iso.endsWith('R1') || iso.endsWith('R9')
+        || iso === '4532' || iso === '2232'
+        || tipo.includes('reefer');
+    if (isReefer) {
         return tamano === '20' ? 'img/20rf.png' : 'img/40rf.png';
     }
-    // Standard / HC
+    // Standard DC / HC
     if (tamano === '20') return 'img/20dc.png';
     return 'img/40HC.png';
 }
@@ -875,21 +923,30 @@ function openEditModal(rowIndex) {
                 <!-- PANEL IZQUIERDO -->
                 <div class="ui-left-panel">
                     <div class="ui-container-visual">
-                        <img src="${imgSrc}" alt="${row.tipo}" class="ui-container-img"
-                             onerror="this.style.opacity='0.3'; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 80%22><rect width=%22200%22 height=%2280%22 rx=%228%22 fill=%22%23eee%22/><text x=%22100%22 y=%2248%22 text-anchor=%22middle%22 fill=%22%23aaa%22 font-size=%2214%22>No img</text></svg>'">
+                        <img src="${imgSrc}" alt="${row.tipo}" class="ui-container-img" id="uiContainerImg"
+                             onload="this.style.opacity='1';"
+                             onerror="this.style.display='none'; document.getElementById('uiImgFallback').style.display='flex';">
+                        <div id="uiImgFallback" class="ui-img-fallback" style="display:none;">
+                            <span style="font-size:32px;">${isReefer ? '❄️' : isDangerous ? '⚠️' : isOpenTop ? '📭' : isFlatRack ? '📋' : isTank ? '🛢️' : '📦'}</span>
+                            <span style="font-size:10px; color:#aaa;">${row.tamaño||''} ${row.tipo||''}</span>
+                        </div>
                         <div class="ui-container-label">${row.tamaño || ''} ${row.tipo || ''}</div>
                     </div>
 
                     <div class="ui-key-info">
+                        <div class="ui-key-row">
+                            <span class="ui-key-label">Estado</span>
+                            <span class="ui-key-value" style="color:${row.estado==='Lleno'?'#2e7d32':'#888'}; font-weight:800;">${row.estado || '-'}</span>
+                        </div>
                         <div class="ui-key-row"><span class="ui-key-label">ISO</span><span class="ui-key-value ui-mono">${row.isoCode || '-'}</span></div>
                         <div class="ui-key-row"><span class="ui-key-label">Posición</span><span class="ui-key-value ui-mono" style="color:${accentColor}; font-weight:800;">${row.posicion || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Bay / Row / Tier</span><span class="ui-key-value ui-mono">${row.bay || '-'} / ${row.row || '-'} / ${row.tier || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Peso VGM</span><span class="ui-key-value">${row.peso ? Number(row.peso).toLocaleString('es-UY') + ' kg' : '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Slot Op.</span><span class="ui-key-value">${row.slotOperator || '-'}</span></div>
-                        <div class="ui-key-row"><span class="ui-key-label">Booking</span><span class="ui-key-value">${row.booking || '-'}</span></div>
-                        ${isReefer ? `<div class="ui-key-row"><span class="ui-key-label">Setpoint</span><span class="ui-key-value" style="color:#1565c0; font-weight:800;">${row.setpoint ? row.setpoint + ' °C' : '-'}</span></div>` : ''}
+                        <div class="ui-key-row"><span class="ui-key-label">Bay/Row/Tier</span><span class="ui-key-value ui-mono">${row.bay||'-'}/${row.row||'-'}/${row.tier||'-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Peso VGM</span><span class="ui-key-value">${row.peso ? Number(row.peso).toLocaleString('es-UY')+' kg' : '-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Slot Op.</span><span class="ui-key-value">${row.slotOperator||'-'}</span></div>
+                        <div class="ui-key-row"><span class="ui-key-label">Booking</span><span class="ui-key-value">${row.booking||'-'}</span></div>
+                        ${isReefer ? `<div class="ui-key-row"><span class="ui-key-label">Setpoint</span><span class="ui-key-value" style="color:#1565c0;font-weight:800;">${row.setpoint?row.setpoint+' °C':'-'}</span></div>` : ''}
                         ${isReefer && row.humedad ? `<div class="ui-key-row"><span class="ui-key-label">Humedad</span><span class="ui-key-value">${row.humedad}%</span></div>` : ''}
-                        ${isDangerous ? `<div class="ui-key-row"><span class="ui-key-label">IMDG</span><span class="ui-key-value" style="color:#e53935; font-weight:800;">${row.imdg || '-'}</span></div>` : ''}
+                        ${isDangerous ? `<div class="ui-key-row"><span class="ui-key-label">IMDG</span><span class="ui-key-value" style="color:#e53935;font-weight:800;">${row.imdg||'-'}</span></div>` : ''}
                         ${isDangerous && row.unNumber ? `<div class="ui-key-row"><span class="ui-key-label">UN Nº</span><span class="ui-key-value" style="color:#e53935;">${row.unNumber}</span></div>` : ''}
                     </div>
                 </div>
@@ -934,14 +991,6 @@ function openEditModal(rowIndex) {
 
                     <!-- MODO EDICIÓN (oculto por defecto) -->
                     <div id="uiEditMode" style="display:none;">
-                        <div class="ui-section-title" style="color:${accentColor};">📍 Posición</div>
-                        <div class="ui-form-grid ui-grid-4">
-                            <div class="ui-field"><label>POSICION</label><input type="text" id="edit_posicion" value="${row.posicion||''}" class="edit-modal-input"></div>
-                            <div class="ui-field"><label>BAY</label><input type="text" id="edit_bay" value="${row.bay||''}" class="edit-modal-input"></div>
-                            <div class="ui-field"><label>ROW</label><input type="text" id="edit_row" value="${row.row||''}" class="edit-modal-input"></div>
-                            <div class="ui-field"><label>TIER</label><input type="text" id="edit_tier" value="${row.tier||''}" class="edit-modal-input"></div>
-                        </div>
-
                         <div class="ui-section-title" style="color:${accentColor};">📦 Contenedor</div>
                         <div class="ui-form-grid ui-grid-4">
                             <div class="ui-field" style="grid-column:span 2;"><label>NÚMERO</label><input type="text" id="edit_numero" value="${row.numero||''}" class="edit-modal-input"></div>
@@ -1153,26 +1202,27 @@ function applyFiltersOnly() {
     containersData = filtered;
 
     // Solo actualiza tbody, sin tocar thead ni filterRow
-    const headers = Object.keys(originalData[0]);
-    const colWidths = {
-        id: '40px', posicion: '80px', bay: '45px', row: '45px', tier: '45px',
-        numero: '120px', isoCode: '70px', tamaño: '55px', tipo: '80px',
-        peso: '70px', setpoint: '70px', humedad: '70px', ventilacion: '80px',
-        pol: '60px', pod: '60px', descarga: '70px', booking: '100px',
-        slotOperator: '90px', peligroso: '75px', imdg: '60px',
-        unNumber: '80px', descripcion: '150px',
-    };
+    const allKeys = Object.keys(originalData[0]);
+    const headers = allKeys.filter(k => !HIDDEN_COLS.includes(k));
 
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = filtered.map(row => {
         const isDangerous = row.peligroso === 'Sí';
         const isReefer = row.setpoint && row.setpoint !== '';
-        const rowClass = isDangerous ? 'dangerous' : (isReefer ? 'reefer' : '');
-        return `<tr class="${rowClass}">
+        const isEmpty = row.estado === 'Vacío';
+        const rowClass = isDangerous ? 'dangerous' : isReefer ? 'reefer' : isEmpty ? 'empty-row' : '';
+        return `<tr class="${rowClass}" ondblclick="openEditModalByNum('${row.numero}')">
             ${headers.map(key => {
-            const width = colWidths[key] || '90px';
-            return `<td style="width:${width}; min-width:${width};">${row[key] || ''}</td>`;
-        }).join('')}
+                const width = COL_WIDTHS[key] || '90px';
+                let val = row[key] || '';
+                if (key === 'estado') {
+                    const badge = val === 'Lleno'
+                        ? '<span class="estado-badge estado-lleno">Lleno</span>'
+                        : '<span class="estado-badge estado-vacio">Vacío</span>';
+                    return `<td style="width:${width}; min-width:${width};">${badge}</td>`;
+                }
+                return `<td style="width:${width}; min-width:${width};">${val}</td>`;
+            }).join('')}
         </tr>`;
     }).join('');
 
@@ -1263,12 +1313,13 @@ function clearSingleFilter(col) {
 // DESPUÉS
 function clearFilters() {
     filters = {};
+    activeQuickFilter = null;
+    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('qf-active'));
     containersData = JSON.parse(JSON.stringify(originalData));
     const globalSearch = document.getElementById('globalSearch');
     if (globalSearch) globalSearch.value = '';
     renderTable();
     showStats();
-    // Los inputs se recrean limpios con renderTable, no hace falta limpiarlos manualmente
 }
 
 // DESPUÉS
@@ -1284,26 +1335,27 @@ function globalSearch(value) {
         });
     }
 
-    const headers = Object.keys(originalData[0]);
-    const colWidths = {
-        id: '40px', posicion: '80px', bay: '45px', row: '45px', tier: '45px',
-        numero: '120px', isoCode: '70px', tamaño: '55px', tipo: '80px',
-        peso: '70px', setpoint: '70px', humedad: '70px', ventilacion: '80px',
-        pol: '60px', pod: '60px', descarga: '70px', booking: '100px',
-        slotOperator: '90px', peligroso: '75px', imdg: '60px',
-        unNumber: '80px', descripcion: '150px',
-    };
+    const allKeys2 = Object.keys(originalData[0]);
+    const headers2 = allKeys2.filter(k => !HIDDEN_COLS.includes(k));
 
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = containersData.map(row => {
         const isDangerous = row.peligroso === 'Sí';
         const isReefer = row.setpoint && row.setpoint !== '';
-        const rowClass = isDangerous ? 'dangerous' : (isReefer ? 'reefer' : '');
-        return `<tr class="${rowClass}">
-            ${headers.map(key => {
-            const width = colWidths[key] || '90px';
-            return `<td style="width:${width}; min-width:${width};">${row[key] || ''}</td>`;
-        }).join('')}
+        const isEmpty = row.estado === 'Vacío';
+        const rowClass = isDangerous ? 'dangerous' : isReefer ? 'reefer' : isEmpty ? 'empty-row' : '';
+        return `<tr class="${rowClass}" ondblclick="openEditModalByNum('${row.numero}')">
+            ${headers2.map(key => {
+                const width = COL_WIDTHS[key] || '90px';
+                let val = row[key] || '';
+                if (key === 'estado') {
+                    const badge = val === 'Lleno'
+                        ? '<span class="estado-badge estado-lleno">Lleno</span>'
+                        : '<span class="estado-badge estado-vacio">Vacío</span>';
+                    return `<td style="width:${width}; min-width:${width};">${badge}</td>`;
+                }
+                return `<td style="width:${width}; min-width:${width};">${val}</td>`;
+            }).join('')}
         </tr>`;
     }).join('');
 
