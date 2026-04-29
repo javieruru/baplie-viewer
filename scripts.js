@@ -672,37 +672,27 @@ function renderTable() {
         </th>`;
     }).join('');
 
-    // Remove old datalists from body
-    document.querySelectorAll('datalist[id^="dl_"]').forEach(d => d.remove());
-
-    // Build datalists and append to body (can't live inside <table>)
-    const datalistContainer = document.createDocumentFragment();
-    headers.forEach(key => {
-        if (key === 'id') return;
-        const uniqVals = [...new Set(
-            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v && v.length < 30)
-        )].sort().slice(0, 80);
-        const dl = document.createElement('datalist');
-        dl.id = `dl_${key}`;
-        uniqVals.forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = v;
-            dl.appendChild(opt);
-        });
-        datalistContainer.appendChild(dl);
-    });
-    document.body.appendChild(datalistContainer);
-
+    // Build filter row with custom dropdown selects
     filterRow.innerHTML = headers.map(key => {
         const isId = key === 'id';
         const width = COL_WIDTHS[key] || '90px';
         if (isId) return `<th style="width:${width}; min-width:${width};"><span class="filter-label-id">Filtrar...</span></th>`;
-        return `<th style="width:${width}; min-width:${width}; position:relative;">
-            <input type="text" class="filter-input" placeholder="▼" data-col="${key}"
-                list="dl_${key}"
-                value="${filters[key] || ''}"
-                onkeyup="filterColumn('${key}', this.value)"
+
+        const uniqVals = [...new Set(
+            originalData.map(r => (r[key] || '').toString().trim()).filter(v => v !== '')
+        )].sort();
+
+        const currentVal = filters[key] || '';
+        const options = uniqVals.map(v =>
+            `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${v}</option>`
+        ).join('');
+
+        return `<th style="width:${width}; min-width:${width}; padding:2px 3px;">
+            <select class="filter-select ${currentVal ? 'filter-active' : ''}" data-col="${key}"
                 onchange="filterColumn('${key}', this.value)">
+                <option value="">—</option>
+                ${options}
+            </select>
         </th>`;
     }).join('');
 
@@ -1216,7 +1206,11 @@ function sortTable(column) {
 // ==================== FILTROS ====================
 // DESPUÉS
 function filterColumn(column, value) {
-    filters[column] = value.toLowerCase();
+    if (value === '' || value === '—') {
+        delete filters[column];
+    } else {
+        filters[column] = value.toLowerCase();
+    }
     applyFiltersOnly();
 }
 
@@ -1257,27 +1251,13 @@ function applyFiltersOnly() {
     }).join('');
 
     // Actualiza estilos del input activo sin tocar el DOM
-    document.querySelectorAll('.filter-input').forEach(input => {
-        const col = input.dataset.col;
+    document.querySelectorAll('.filter-select').forEach(sel => {
+        const col = sel.dataset.col;
         if (!col) return;
         const val = filters[col] || '';
-
-        if (val) {
-            input.classList.add('filter-active');
-        } else {
-            input.classList.remove('filter-active');
-        }
-
-        let clearBtn = input.parentNode.querySelector('.filter-clear');
-        if (val && !clearBtn) {
-            clearBtn = document.createElement('span');
-            clearBtn.className = 'filter-clear';
-            clearBtn.textContent = '✕';
-            clearBtn.onclick = () => clearSingleFilter(col);
-            input.parentNode.appendChild(clearBtn);
-        } else if (!val && clearBtn) {
-            clearBtn.remove();
-        }
+        sel.value = val || '';
+        if (val) sel.classList.add('filter-active');
+        else sel.classList.remove('filter-active');
     });
 
     showStats();
@@ -1298,46 +1278,20 @@ function applyFilters() {
 
 // DESPUÉS
 function restoreFilterInputs() {
-    const active = document.activeElement;
-    const activeCol = active && active.dataset ? active.dataset.col : null;
-    const activeCursor = active ? active.selectionStart : null;
-
-    document.querySelectorAll('.filter-input').forEach(input => {
-        const col = input.dataset.col;
+    document.querySelectorAll('.filter-select').forEach(sel => {
+        const col = sel.dataset.col;
         if (!col) return;
         const val = filters[col] || '';
-        input.value = val;
-
-        if (val) {
-            input.classList.add('filter-active');
-        } else {
-            input.classList.remove('filter-active');
-        }
-
-        let clearBtn = input.parentNode.querySelector('.filter-clear');
-        if (val && !clearBtn) {
-            clearBtn = document.createElement('span');
-            clearBtn.className = 'filter-clear';
-            clearBtn.textContent = '✕';
-            clearBtn.onclick = () => clearSingleFilter(col);
-            input.parentNode.appendChild(clearBtn);
-        } else if (!val && clearBtn) {
-            clearBtn.remove();
-        }
-
-        // Restaurar foco y posición del cursor
-        if (col === activeCol) {
-            input.focus();
-            if (activeCursor !== null) {
-                input.setSelectionRange(activeCursor, activeCursor);
-            }
-        }
+        sel.value = val || '';
+        if (val) sel.classList.add('filter-active');
+        else sel.classList.remove('filter-active');
     });
 }
 
 function clearSingleFilter(col) {
     delete filters[col];
-    applyFilters();
+    renderTable();
+    showStats();
 }
 
 // DESPUÉS

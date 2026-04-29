@@ -1703,3 +1703,31 @@ tbody tr.empty-row { background: #fafafa !important; color: #aaa; }
 .footer-stat-active .footer-value {
     text-decoration: underline;
 }
+
+/* === FILTER SELECT IN TABLE HEADER === */
+.filter-row th {
+    padding: 3px 3px !important;
+    background: rgba(102, 126, 234, 0.15);
+}
+.filter-select {
+    width: 100%;
+    padding: 4px 2px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 4px;
+    font-size: 11px;
+    background: rgba(255,255,255,0.9);
+    color: #333;
+    cursor: pointer;
+    appearance: auto;
+}
+.filter-select:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 2px rgba(118,75,162,0.2);
+}
+.filter-select.filter-active {
+    background: white;
+    border: 2px solid #764ba2;
+    font-weight: 700;
+    color: #764ba2;
+}
