@@ -1795,7 +1795,7 @@ function generateMOVINS(index, options) {
         `UNH+1+MOVINS:D:95B:UN:SMDG2`,
         `BGM++1+9`,
         `DTM+137:${movinsFormatDTM137(docDate)}:201`,
-        `TDT+20+${voyage}++++++:146:11:${vessel}`,
+        `TDT+20+${voyage}++++++:103:ZZZ:${vessel}`,
         `LOC+175+${globalPol}:139:6`,
         `LOC+5+${globalPol}:139:6`,
         `LOC+61+${nextPort}:139:6`,
