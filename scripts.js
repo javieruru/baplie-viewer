@@ -2028,7 +2028,7 @@ function openMOVINSModal(index) {
     const guessedVessel = (baplie.vesselName && baplie.vesselName !== 'Unknown Vessel') ? baplie.vesselName : '';
     document.getElementById('movinsVessel').value = guessedVessel;
     document.getElementById('movinsVoyage').value = movinsGuessVoyageFromFileName(baplie.fileName);
-    document.getElementById('movinsPol').value = movinsGuessGlobalLocCode(baplie.containers || [], 'pol');
+    document.getElementById('movinsPol').value = 'UYMVD';
     document.getElementById('movinsNextPort').value = movinsGuessGlobalLocCode(baplie.containers || [], 'pod');
     document.getElementById('movinsApplyRoutingToUnits').checked = false;
 
