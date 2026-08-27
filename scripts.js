@@ -1792,10 +1792,10 @@ function generateMOVINS(index, options) {
 
     // ---------- Cabecera ----------
     const header = [
-        `UNH+1+MOVINS:D:95B:UN:SMDG2`,
+        `UNH+1+MOVINS:D:95B:UN:SMDG20`,
         `BGM++1+9`,
         `DTM+137:${movinsFormatDTM137(docDate)}:201`,
-        `TDT+20+${voyage}++++++:103:ZZZ:${vessel}`,
+        `TDT+20+${voyage}+++TCP:172:20+++:103:ZZZ:${vessel}`,
         `LOC+175+${globalPol}:139:6`,
         `LOC+5+${globalPol}:139:6`,
         `LOC+61+${nextPort}:139:6`,
