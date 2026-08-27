@@ -1792,7 +1792,7 @@ function generateMOVINS(index, options) {
 
     // ---------- Cabecera ----------
     const header = [
-        `UNH+1+MOVINS:D:95B:UN:SMDG20`,
+        `UNH+1+MOVINS:D:95B:UN:SMDG2`,
         `BGM++1+9`,
         `DTM+137:${movinsFormatDTM137(docDate)}:201`,
         `TDT+20+${voyage}++++++:103:ZZZ:${vessel}`,
@@ -1925,8 +1925,8 @@ function validateMOVINS(movinsText, context) {
     if (!has('UNB+')) push('error', 'MISSING_UNB', 'Falta el segmento UNB.');
     if (!has('UNH+')) push('error', 'MISSING_UNH', 'Falta el segmento UNH.');
     const unhSeg = segments.find(s => s.startsWith('UNH+'));
-    if (unhSeg && !unhSeg.includes('MOVINS:D:95B:UN:SMDG20')) {
-        push('error', 'WRONG_MESSAGE_TYPE', 'El UNH no corresponde a MOVINS D.95B/SMDG20.');
+    if (unhSeg && !unhSeg.includes('MOVINS:D:95B:UN:SMDG2')) {
+        push('error', 'WRONG_MESSAGE_TYPE', 'El UNH no corresponde a MOVINS D.95B/SMDG2.');
     }
     if (!has('BGM+')) push('error', 'MISSING_BGM', 'Falta el segmento BGM.');
     if (!has('DTM+137')) push('error', 'MISSING_DTM137', 'Falta la fecha DTM+137.');
