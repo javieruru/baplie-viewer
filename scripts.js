@@ -1799,8 +1799,7 @@ function generateMOVINS(index, options) {
         `LOC+175+${globalPol}:139:6`,
         `LOC+5+${globalPol}:139:6`,
         `LOC+61+${nextPort}:139:6`,
-        `DTM+133:${movinsFormatDTMDateOnly(docDate)}:201`,
-        `DTM+178:${movinsFormatDTMDateOnly(docDate)}:201`,
+        `DTM+132:${movinsFormatDTMDateOnly(docDate)}:201`,
         `RFF+VON:${voyage}`,
         `HAN+LOA`
     ];
@@ -1892,7 +1891,7 @@ function generateMOVINS(index, options) {
     // ---------- Cierre ----------
     const unt = calculateUNT(bodySegments, '1');
     const allSegments = [
-        `UNB+UNOA:1+UNKNOWN+UNKNOWN+${movinsFormatUNBDateTime(docDate)}+${interchangeRef}`,
+        `UNB+UNOA:1+UNKNOWN+UYMVD+${movinsFormatUNBDateTime(docDate)}+${interchangeRef}`,
         ...bodySegments,
         unt,
         `UNZ+1+${interchangeRef}`
