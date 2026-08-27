@@ -1928,3 +1928,23 @@ tbody tr.empty-row { background: #fafafa !important; color: #aaa; }
   flex-wrap: wrap;
   gap: 4px;
 }
+
+
+/* === FIX COLUMNA ACCIONES === */
+
+#baplieListTable th:last-child,
+#baplieListTable td:last-child {
+    min-width: 155px;
+    width: 155px;
+    white-space: nowrap;
+}
+
+#baplieListTable td:last-child {
+    display: table-cell;
+}
+
+#baplieListTable td:last-child .btn-icon {
+    display: inline-block;
+    margin: 0 2px;
+    padding: 8px 10px;
+}
